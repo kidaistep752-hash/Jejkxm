@@ -457,3 +457,55 @@ RunService.Heartbeat:Connect(function()
     vel.MaxTorque = Vector3.new(0, 99999, 0)
     vel.Parent = myRoot
 end)
+-- ====================================================================
+--  PART 5.2: TARGET DETECTORS & FIXED ONE-PUNCH FLING
+-- ====================================================================
+local function getMurderer()
+    for _, p in pairs(Players:GetPlayers()) do
+        if p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+            if p.Character:FindFirstChild("Knife") or p.Backpack:FindFirstChild("Knife") then 
+                return p.Character.HumanoidRootPart 
+            end
+        end
+    end
+    return nil
+end
+
+local function findDroppedGun()
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj.Name == "GunDrop" or (obj:IsA("TouchTransmitter") and obj.Parent.Name == "Handle" and obj.Parent.Parent.Name == "GunDrop") then
+            return obj:IsA("TouchTransmitter") and obj.Parent or obj:FindFirstChild("Handle") or obj
+        end
+    end
+    return nil
+end
+
+local function getClosestPlayer()
+    local closest, maxDist = nil, 6
+    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return nil end
+    local myRoot = LocalPlayer.Character.HumanoidRootPart
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+            local dist = (myRoot.Position - p.Character.HumanoidRootPart.Position).Magnitude
+            if dist < maxDist then closest = p.Character.HumanoidRootPart; maxDist = dist end
+        end
+    end
+    return closest
+end
+
+-- Физический цикл One-Punch Fling
+RunService.Heartbeat:Connect(function()
+    if not _G.Config.OnePunchFling or not LocalPlayer.Character then return end
+    local myRoot = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return end
+    local targetRoot = getClosestPlayer()
+    if targetRoot then
+        local currentVelocity = myRoot.AssemblyLinearVelocity
+        myRoot.AssemblyLinearVelocity = Vector3.new(0, 50000, 0)
+        local oldCFrame = myRoot.CFrame
+        myRoot.CFrame = targetRoot.CFrame
+        task.wait()
+        myRoot.AssemblyLinearVelocity = currentVelocity
+        myRoot.CFrame = oldCFrame
+    end
+end)
