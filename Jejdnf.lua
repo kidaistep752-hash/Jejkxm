@@ -458,7 +458,7 @@ RunService.Heartbeat:Connect(function()
     vel.Parent = myRoot
 end)
 -- ====================================================================
---  PART 5.2: TARGET DETECTORS & FIXED ONE-PUNCH FLING
+--  PART 5.2: FIXED CORE LOGIC & VISUALS (NO LAGS)
 -- ====================================================================
 local function getMurderer()
     for _, p in pairs(Players:GetPlayers()) do
@@ -507,5 +507,164 @@ RunService.Heartbeat:Connect(function()
         task.wait()
         myRoot.AssemblyLinearVelocity = currentVelocity
         myRoot.CFrame = oldCFrame
+    end
+end)
+
+-- 100% РАБОЧИЙ АВТО-ВЫСТРЕЛ
+_G.ShotButton.MouseButton1Click:Connect(function()
+    if not _G.Config.MM2Shot or not LocalPlayer.Character then return end
+    local myChar = LocalPlayer.Character
+    local hum = myChar:FindFirstChildOfClass("Humanoid")
+    local gun = myChar:FindFirstChild("Gun") or LocalPlayer.Backpack:FindFirstChild("Gun")
+    
+    if not gun then return end
+    if gun.Parent == LocalPlayer.Backpack and hum then
+        hum:EquipTool(gun)
+        task.wait(0.05)
+    end
+    
+    local targetRoot = getMurderer()
+    if targetRoot and myChar:FindFirstChild("HumanoidRootPart") and workspace.CurrentCamera then
+        local myRoot = myChar.HumanoidRootPart
+        local cam = workspace.CurrentCamera
+        cam.CFrame = CFrame.new(cam.CFrame.Position, targetRoot.Position)
+        myRoot.CFrame = CFrame.new(myRoot.Position, Vector3.new(targetRoot.Position.X, myRoot.Position.Y, targetRoot.Position.Z))
+        task.wait(0.02)
+        gun:Activate()
+        local shootEvent = gun:FindFirstChild("KnifeLocal") or gun:FindFirstChild("ShootGun")
+        if shootEvent and shootEvent:IsA("RemoteEvent") then shootEvent:FireServer(targetRoot.Position) end
+    end
+end)
+
+_G.TpGunButton.MouseButton1Click:Connect(function()
+    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return end
+    local root = LocalPlayer.Character.HumanoidRootPart
+    local droppedGun = findDroppedGun()
+    if droppedGun and droppedGun:IsA("BasePart") then
+        local oldPosition = root.CFrame
+        root.CFrame = droppedGun.CFrame + Vector3.new(0, 1, 0)
+        task.wait(0.4)
+        root.CFrame = oldPosition
+    end
+end)
+-- ====================================================================
+--  PART 5.3: OPTIMIZED ESP & GUN CHAMS
+-- ====================================================================
+local function getMM2Color(player)
+    if not player.Character then return Color3.fromRGB(255, 255, 255) end
+    if player.Character:FindFirstChild("Knife") or player.Backpack:FindFirstChild("Knife") then 
+        return Color3.fromRGB(255, 50, 50)
+    elseif player.Character:FindFirstChild("Gun") or player.Backpack:FindFirstChild("Gun") then 
+        return Color3.fromRGB(50, 150, 255) 
+    end
+    return Color3.fromRGB(255, 255, 255)
+end
+
+local function applyPlayerVisuals(player)
+    if player == LocalPlayer then return end
+    
+    -- Вместо RenderStepped используем Heartbeat с проверкой существования
+    RunService.Heartbeat:Connect(function()
+        if not player.Character then return end
+        local highlight = player.Character:FindFirstChild("NeonESP")
+        
+        if _G.Config.MM2Roles or _G.Config.ESPToggle then
+            if not highlight then
+                highlight = Instance.new("Highlight")
+                highlight.Name = "NeonESP"
+                highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                highlight.FillTransparency = 0.4
+                highlight.OutlineTransparency = 0.1
+                highlight.Parent = player.Character
+            end
+            
+            if _G.Config.MM2Roles then 
+                local rColor = getMM2Color(player)
+                highlight.FillColor = rColor
+                highlight.OutlineColor = rColor
+            else 
+                highlight.FillColor = Color3.fromRGB(186, 85, 211)
+                highlight.OutlineColor = Color3.fromRGB(255, 255, 255) 
+            end
+        else 
+            if highlight then highlight:Destroy() end 
+        end
+    end)
+end
+
+Players.PlayerAdded:Connect(applyPlayerVisuals)
+for _, p in pairs(Players:GetPlayers()) do applyPlayerVisuals(p) end
+
+-- Безопасный цикл отрисовки пистолета на земле
+RunService.Heartbeat:Connect(function()
+    local droppedGun = findDroppedGun()
+    if droppedGun and droppedGun:IsA("BasePart") and _G.Config.MM2Gun then
+        if not droppedGun:FindFirstChild("GunESP") then
+            local hl = Instance.new("BoxHandleAdornment", droppedGun)
+            hl.Name = "GunESP"
+            hl.AlwaysOnTop = true
+            hl.Color3 = Color3.fromRGB(50, 255, 50)
+            hl.Size = droppedGun.Size * 1.5
+            hl.Adornee = droppedGun
+            hl.Transparency = 0.3
+            hl.ZIndex = 6
+        end
+        if not droppedGun:FindFirstChild("3D_GunLabel") then
+            local bg = Instance.new("BillboardGui", droppedGun)
+            bg.Name = "3D_GunLabel"
+            bg.Size = UDim2.new(0, 60, 0, 25)
+            bg.AlwaysOnTop = true
+            bg.StudsOffset = Vector3.new(0, 2, 0)
+            bg.Adornee = droppedGun
+            
+            local lbl = Instance.new("TextLabel", bg)
+            lbl.Size = UDim2.new(1, 0, 1, 0)
+            lbl.BackgroundTransparency = 1
+            lbl.Text = "GUN"
+            lbl.TextColor3 = Color3.fromRGB(50, 255, 50)
+            lbl.Font = Enum.Font.SourceSans
+            lbl.TextSize = 15
+        end
+    end
+end)
+-- ====================================================================
+--  PART 5.4: SYSTEM BUTTONS & FINAL CLOSURE
+-- ====================================================================
+local RejoinBtn = Instance.new("TextButton", _G.pSettings)
+RejoinBtn.Size = UDim2.new(1, 0, 0, 30)
+RejoinBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+RejoinBtn.Text = "Server Rejoin"
+RejoinBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+RejoinBtn.Font = Enum.Font.SourceSans
+RejoinBtn.TextSize = 13
+Instance.new("UICorner", RejoinBtn).CornerRadius = UDim.new(0, 5)
+local RjStr = Instance.new("UIStroke", RejoinBtn)
+RjStr.Color = Color3.fromRGB(50, 200, 50)
+
+RejoinBtn.MouseButton1Click:Connect(function()
+    if #Players:GetPlayers() <= 1 then 
+        TeleportService:Teleport(game.PlaceId, LocalPlayer)
+    else 
+        TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer) 
+    end
+end)
+
+local ResetBtn = Instance.new("TextButton", _G.pSettings)
+ResetBtn.Size = UDim2.new(1, 0, 0, 30)
+ResetBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+ResetBtn.Text = "Reset Config & Close UI"
+ResetBtn.TextColor3 = Color3.fromRGB(255, 50, 50)
+ResetBtn.Font = Enum.Font.SourceSans
+ResetBtn.TextSize = 13
+Instance.new("UICorner", ResetBtn).CornerRadius = UDim.new(0, 5)
+local RsStr = Instance.new("UIStroke", ResetBtn)
+RsStr.Color = Color3.fromRGB(255, 50, 50)
+
+ResetBtn.MouseButton1Click:Connect(function()
+    if delfile and isfile("SimpleNeon_Config.json") then 
+        delfile("SimpleNeon_Config.json") 
+    end
+    if _G.ScreenGui then 
+        _G.ScreenGui:Destroy() 
     end
 end)
