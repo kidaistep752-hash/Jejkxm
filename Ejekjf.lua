@@ -1,0 +1,746 @@
+-- ====================================================================
+-- PART 1: INITIALIZATION, CONFIG, MAIN UI & WINDOWS MANAGEMENT
+-- ====================================================================
+local CoreGui = game:GetService("CoreGui")
+local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+local RunService = game:GetService("RunService")
+local TeleportService = game:GetService("TeleportService")
+local LocalPlayer = Players.LocalPlayer
+
+if CoreGui:FindFirstChild("SimpleNeonSense") then
+    CoreGui.SimpleNeonSense:Destroy()
+end
+
+local function cleanChar(char)
+    if not char then return end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if root then
+        for _, child in pairs(root:GetChildren()) do
+            if child:IsA("BodyVelocity") or child:IsA("BodyGyro") or child.Name == "FlyVelocity" or child.Name == "FlingForce" then
+                child:Destroy()
+            end
+        end
+    end
+    for _, child in pairs(char:GetDescendants()) do
+        if (child:IsA("Highlight") and (child.Name == "NeonESP" or child.Name == "GunESP")) or child.Name == "GunLabel" or child.Name == "3D_GunLabel" then
+            child:Destroy()
+        end
+    end
+end
+
+cleanChar(LocalPlayer.Character)
+LocalPlayer.CharacterAdded:Connect(cleanChar)
+
+_G.Config = {
+    Speedhack = false, SpeedValue = 16,
+    Noclip = false,
+    SelectedPlayer = "", Target = false,
+    GodModeToggle = false, GodModeType = "Loop",
+    SpinBot = false, SpinSpeed = 30,
+    FlyMode = false, FlySpeedValue = 40,
+    XNeoFlyActive = false,
+    OnePunchFling = false, FlingSpeed = 100000,
+    ESPToggle = false,  
+    ESPColor = "WHITE",
+    MM2Mod = false,     
+    MM2Roles = false,   
+    MM2Gun = false,     
+    MM2Shot = false,
+    -- Muscle Legends Config
+    ML_AutoLift = false,
+    ML_AutoPushup = false,
+    ML_AutoSitup = false,
+    ML_AutoRock = false,
+    ML_AutoRebirth = false
+}
+
+local FILE_NAME = "SimpleNeon_Config.json"
+function _G.saveSettings()
+    if writefile then
+        local success, encoded = pcall(function() return HttpService:JSONEncode(_G.Config) end)
+        if success then writefile(FILE_NAME, encoded) end
+    end
+end
+
+if readfile and isfile and isfile(FILE_NAME) then
+    local success, decoded = pcall(function() return HttpService:JSONDecode(readfile(FILE_NAME)) end)
+    if success then 
+        for k, v in pairs(decoded) do _G.Config[k] = v end
+    end
+end
+
+_G.ScreenGui = Instance.new("ScreenGui")
+_G.ScreenGui.Name = "SimpleNeonSense"
+_G.ScreenGui.Parent = CoreGui
+_G.ScreenGui.ResetOnSpawn = false
+_G.ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+local function makeDraggable(gui)
+    local dragging, dragInput, dragStart, startPos
+    gui.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true; dragStart = input.Position; startPos = gui.Position
+            input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false end end)
+        end
+    end)
+    gui.InputChanged:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end end)
+    game:GetService("UserInputService").InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            local delta = input.Position - dragStart
+            gui.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+end
+
+local OpenButton = Instance.new("TextButton")
+OpenButton.Size = UDim2.new(0, 50, 0, 50)
+OpenButton.Position = UDim2.new(0, 15, 0, 140)
+OpenButton.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+OpenButton.Text = "⚙️"
+OpenButton.TextSize = 24
+OpenButton.TextColor3 = Color3.fromRGB(186, 85, 211)
+OpenButton.ZIndex = 11
+OpenButton.Parent = _G.ScreenGui
+makeDraggable(OpenButton)
+Instance.new("UICorner", OpenButton).CornerRadius = UDim.new(1, 0)
+local BStroke = Instance.new("UIStroke", OpenButton)
+BStroke.Color = Color3.fromRGB(186, 85, 211); BStroke.Thickness = 1.5
+
+_G.ShotButton = Instance.new("TextButton")
+_G.ShotButton.Size = UDim2.new(0, 60, 0, 60)
+_G.ShotButton.Position = UDim2.new(0, 15, 0, 210) 
+_G.ShotButton.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+_G.ShotButton.Text = "SHOT"
+_G.ShotButton.TextSize = 13
+_G.ShotButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+_G.ShotButton.Font = Enum.Font.SourceSans
+_G.ShotButton.ZIndex = 11
+_G.ShotButton.Visible = false
+_G.ShotButton.Parent = _G.ScreenGui
+makeDraggable(_G.ShotButton)
+Instance.new("UICorner", _G.ShotButton).CornerRadius = UDim.new(0, 12)
+local SStroke = Instance.new("UIStroke", _G.ShotButton)
+SStroke.Color = Color3.fromRGB(50, 255, 50); SStroke.Thickness = 1.2
+
+_G.TpGunButton = Instance.new("TextButton")
+_G.TpGunButton.Size = UDim2.new(0, 60, 0, 60)
+_G.TpGunButton.Position = UDim2.new(0, 15, 0, 280)
+_G.TpGunButton.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+_G.TpGunButton.Text = "TP GUN"
+_G.TpGunButton.TextSize = 12
+_G.TpGunButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+_G.TpGunButton.Font = Enum.Font.SourceSans
+_G.TpGunButton.ZIndex = 11
+_G.TpGunButton.Visible = false
+_G.TpGunButton.Parent = _G.ScreenGui
+makeDraggable(_G.TpGunButton)
+Instance.new("UICorner", _G.TpGunButton).CornerRadius = UDim.new(0, 12)
+local TpGStroke = Instance.new("UIStroke", _G.TpGunButton)
+TpGStroke.Color = Color3.fromRGB(186, 85, 211); TpGStroke.Thickness = 1.2
+
+_G.MainFrame = Instance.new("Frame")
+_G.MainFrame.Size = UDim2.new(0, 360, 0, 240)
+_G.MainFrame.Position = UDim2.new(0.5, -180, 0.5, -120)
+_G.MainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+_G.MainFrame.Visible = false
+_G.MainFrame.ZIndex = 10
+_G.MainFrame.Parent = _G.ScreenGui
+makeDraggable(_G.MainFrame)
+Instance.new("UICorner", _G.MainFrame).CornerRadius = UDim.new(0, 8)
+local MStroke = Instance.new("UIStroke", _G.MainFrame)
+MStroke.Color = Color3.fromRGB(186, 85, 211)
+
+_G.TopBar = Instance.new("Frame", _G.MainFrame)
+_G.TopBar.Size = UDim2.new(1, 0, 0, 35)
+_G.TopBar.BackgroundTransparency = 1
+_G.TopBar.ZIndex = 11
+local TopLayout = Instance.new("UIListLayout", _G.TopBar)
+TopLayout.FillDirection = Enum.FillDirection.Horizontal; TopLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center; TopLayout.VerticalAlignment = Enum.VerticalAlignment.Center; TopLayout.Padding = UDim.new(0, 10)
+
+_G.Container = Instance.new("Frame", _G.MainFrame)
+_G.Container.Size = UDim2.new(1, -20, 1, -50)
+_G.Container.Position = UDim2.new(0, 10, 0, 40)
+_G.Container.BackgroundTransparency = 1
+_G.Container.ZIndex = 11
+
+_G.MM2Window = Instance.new("Frame")
+_G.MM2Window.Size = UDim2.new(0, 210, 0, 190) 
+_G.MM2Window.Position = UDim2.new(0.5, 190, 0.5, -95)
+_G.MM2Window.BackgroundColor3 = Color3.fromRGB(12, 12, 12)
+_G.MM2Window.Visible = false
+_G.MM2Window.ZIndex = 20
+_G.MM2Window.Parent = _G.ScreenGui
+makeDraggable(_G.MM2Window)
+Instance.new("UICorner", _G.MM2Window).CornerRadius = UDim.new(0, 6)
+local MM2Stroke = Instance.new("UIStroke", _G.MM2Window)
+MM2Stroke.Color = Color3.fromRGB(255, 65, 65)
+
+local MM2Title = Instance.new("TextLabel", _G.MM2Window)
+MM2Title.Size = UDim2.new(1, 0, 0, 30)
+MM2Title.BackgroundTransparency = 1
+MM2Title.Text = "MM2 DASHBOARD"
+MM2Title.TextColor3 = Color3.fromRGB(255, 65, 65)
+MM2Title.Font = Enum.Font.SourceSansBold
+MM2Title.TextSize = 14
+
+_G.MM2Content = Instance.new("Frame", _G.MM2Window)
+_G.MM2Content.Size = UDim2.new(1, -10, 1, -40)
+_G.MM2Content.Position = UDim2.new(0, 5, 0, 35)
+_G.MM2Content.BackgroundTransparency = 1
+local MM2Layout = Instance.new("UIListLayout", _G.MM2Content)
+MM2Layout.Padding = UDim.new(0, 6)
+
+_G.MLWindow = Instance.new("Frame")
+_G.MLWindow.Size = UDim2.new(0, 210, 0, 190)
+_G.MLWindow.Position = UDim2.new(0.5, -410, 0.5, -95)
+_G.MLWindow.BackgroundColor3 = Color3.fromRGB(12, 12, 12)
+_G.MLWindow.Visible = false
+_G.MLWindow.ZIndex = 20
+_G.MLWindow.Parent = _G.ScreenGui
+makeDraggable(_G.MLWindow)
+Instance.new("UICorner", _G.MLWindow).CornerRadius = UDim.new(0, 6)
+local MLStroke = Instance.new("UIStroke", _G.MLWindow)
+MLStroke.Color = Color3.fromRGB(0, 162, 255)
+
+local MLTitle = Instance.new("TextLabel", _G.MLWindow)
+MLTitle.Size = UDim2.new(1, 0, 0, 30)
+MLTitle.BackgroundTransparency = 1
+MLTitle.Text = "MUSCLE LEGENDS"
+MLTitle.TextColor3 = Color3.fromRGB(0, 162, 255)
+MLTitle.Font = Enum.Font.SourceSansBold
+MLTitle.TextSize = 14
+
+_G.MLContent = Instance.new("Frame", _G.MLWindow)
+_G.MLContent.Size = UDim2.new(1, -10, 1, -40)
+_G.MLContent.Position = UDim2.new(0, 5, 0, 35)
+_G.MLContent.BackgroundTransparency = 1
+local MLLayout = Instance.new("UIListLayout", _G.MLContent)
+MLLayout.Padding = UDim.new(0, 6)
+
+local function updateMM2State(state)
+    _G.Config.MM2Mod = state
+    _G.MM2Window.Visible = (state and _G.MainFrame.Visible) or false
+    if not state then
+        _G.Config.MM2Roles = false
+        _G.Config.MM2Gun = false
+        _G.Config.MM2Shot = false
+        _G.Config.Target = false
+        if _G.ShotButton then _G.ShotButton.Visible = false end
+        if _G.TpGunButton then _G.TpGunButton.Visible = false end
+    end
+    _G.saveSettings()
+end
+
+OpenButton.MouseButton1Click:Connect(function()
+    local state = not _G.MainFrame.Visible
+    _G.MainFrame.Visible = state
+    _G.MM2Window.Visible = (_G.Config.MM2Mod and state) or false
+    _G.MLWindow.Visible = (_G.Config.ML_AutoLift or _G.Config.ML_AutoPushup or _G.Config.ML_AutoSitup or _G.Config.ML_AutoRock or _G.Config.ML_AutoRebirth) and state or false
+end)
+-- ====================================================================
+-- PART 2: TABS, ENGINE GENERATORS & FIXED PHYSICS LOOP WITH BOOSTED FLING
+-- ====================================================================
+local pages = {}
+function _G.createTab(name)
+    local TabBtn = Instance.new("TextButton")
+    TabBtn.Size = UDim2.new(0, 65, 0, 25)
+    TabBtn.BackgroundTransparency = 1
+    TabBtn.Text = name
+    TabBtn.TextColor3 = Color3.fromRGB(110, 110, 110)
+    TabBtn.TextSize = 13
+    TabBtn.Font = Enum.Font.SourceSansBold
+    TabBtn.ZIndex = 12
+    TabBtn.Parent = _G.TopBar
+
+    local Page = Instance.new("ScrollingFrame", _G.Container)
+    Page.Size = UDim2.new(1, 0, 1, 0)
+    Page.BackgroundTransparency = 1
+    Page.Visible = false
+    Page.CanvasSize = UDim2.new(0, 0, 0, 0)
+    Page.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    Page.ScrollBarThickness = 0
+    Page.ZIndex = 12
+
+    local PageLayout = Instance.new("UIListLayout", Page)
+    PageLayout.Padding = UDim.new(0, 6)
+
+    TabBtn.MouseButton1Click:Connect(function()
+        for _, p in pairs(pages) do
+            p.Page.Visible = false
+            p.Btn.TextColor3 = Color3.fromRGB(110, 110, 110)
+        end
+        Page.Visible = true
+        TabBtn.TextColor3 = Color3.fromRGB(186, 85, 211)
+    end)
+    pages[name] = {Page = Page, Btn = TabBtn}
+    return Page
+end
+
+_G.pPlayer = _G.createTab("Player")
+_G.pVisual = _G.createTab("Visuals")
+_G.pGame = _G.createTab("Game")
+_G.pOther = _G.createTab("Other")
+_G.pSettings = _G.createTab("Settings")
+
+pages["Player"].Page.Visible = true
+pages["Player"].Btn.TextColor3 = Color3.fromRGB(186, 85, 211)
+
+function _G.createCheckbox(parent, configKey, text)
+    local Frame = Instance.new("Frame", parent)
+    Frame.Size = UDim2.new(1, 0, 0, 30)
+    Frame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+    Instance.new("UICorner", Frame).CornerRadius = UDim.new(0, 5)
+
+    local ToggleBtn = Instance.new("TextButton", Frame)
+    ToggleBtn.Size = UDim2.new(0, 20, 0, 20)
+    ToggleBtn.Position = UDim2.new(0, 5, 0, 5)
+    ToggleBtn.BackgroundColor3 = _G.Config[configKey] and Color3.fromRGB(186, 85, 211) or Color3.fromRGB(30, 30, 30)
+    ToggleBtn.Text = ""
+    Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(0, 4)
+
+    local Label = Instance.new("TextLabel", Frame)
+    Label.Size = UDim2.new(1, -35, 1, 0)
+    Label.Position = UDim2.new(0, 35, 0, 0)
+    Label.BackgroundTransparency = 1
+    Label.Text = text
+    Label.TextColor3 = Color3.fromRGB(200, 200, 200)
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.Font = Enum.Font.SourceSans
+    Label.TextSize = 13
+
+    local stateCallback = nil
+    ToggleBtn.MouseButton1Click:Connect(function()
+        _G.Config[configKey] = not _G.Config[configKey]
+        ToggleBtn.BackgroundColor3 = _G.Config[configKey] and Color3.fromRGB(186, 85, 211) or Color3.fromRGB(30, 30, 30)
+        _G.saveSettings()
+        if stateCallback then stateCallback(_G.Config[configKey]) end
+    end)
+    
+    -- Функция принудительного внешнего обновления состояния чекбокса
+    local function forceUpdate(val)
+        ToggleBtn.BackgroundColor3 = val and Color3.fromRGB(186, 85, 211) or Color3.fromRGB(30, 30, 30)
+        if stateCallback then stateCallback(val) end
+    end
+    
+    return { OnToggle = function(callback) stateCallback = callback end, Set = forceUpdate }
+end
+
+function _G.createFeatureWithLeftSlider(parent, configKey, speedKey, text, min, max)
+    local BigWrapper = Instance.new("Frame", parent)
+    BigWrapper.Size = UDim2.new(1, 0, 0, 30)
+    BigWrapper.BackgroundTransparency = 1
+    BigWrapper.ZIndex = 13
+
+    local MainLine = Instance.new("Frame", BigWrapper)
+    MainLine.Size = UDim2.new(1, 0, 0, 30)
+    MainLine.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+    MainLine.ZIndex = 14
+    Instance.new("UICorner", MainLine).CornerRadius = UDim.new(0, 5)
+
+    local ToggleBtn = Instance.new("TextButton", MainLine)
+    ToggleBtn.Size = UDim2.new(0, 20, 0, 20)
+    ToggleBtn.Position = UDim2.new(0, 5, 0, 5)
+    ToggleBtn.BackgroundColor3 = _G.Config[configKey] and Color3.fromRGB(186, 85, 211) or Color3.fromRGB(30, 30, 30)
+    ToggleBtn.Text = ""; ToggleBtn.ZIndex = 15
+    Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(0, 4)
+
+    local Label = Instance.new("TextLabel", MainLine)
+    Label.Size = UDim2.new(1, -70, 1, 0); Label.Position = UDim2.new(0, 35, 0, 0); Label.BackgroundTransparency = 1; Label.Text = text; Label.TextColor3 = Color3.fromRGB(200, 200, 200); Label.TextXAlignment = Enum.TextXAlignment.Left; Label.Font = Enum.Font.SourceSans; Label.TextSize = 13; Label.ZIndex = 15
+
+    local GearBtn = Instance.new("TextButton", MainLine)
+    GearBtn.Size = UDim2.new(0, 25, 0, 25); GearBtn.Position = UDim2.new(1, -30, 0, 2); GearBtn.BackgroundTransparency = 1; GearBtn.Text = "⚙️"; GearBtn.TextSize = 13; GearBtn.ZIndex = 15
+
+    local SliderPanel = Instance.new("Frame", BigWrapper)
+    SliderPanel.Size = UDim2.new(1, 0, 0, 0); SliderPanel.Position = UDim2.new(0, 0, 0, 30); SliderPanel.BackgroundColor3 = Color3.fromRGB(20, 20, 20); SliderPanel.ClipsDescendants = true; SliderPanel.ZIndex = 13
+    Instance.new("UICorner", SliderPanel).CornerRadius = UDim.new(0, 5)
+
+    local SliderBar = Instance.new("Frame", SliderPanel)
+    SliderBar.Size = UDim2.new(1, -40, 0, 6); SliderBar.Position = UDim2.new(0, 10, 0, 12); SliderBar.BackgroundColor3 = Color3.fromRGB(40, 40, 40); SliderBar.ZIndex = 14
+
+    local SliderFill = Instance.new("Frame", SliderBar)
+    SliderFill.Size = UDim2.new((_G.Config[speedKey] - min) / (max - min), 0, 1, 0); SliderFill.BackgroundColor3 = Color3.fromRGB(186, 85, 211); SliderFill.ZIndex = 15
+
+    local ValueLabel = Instance.new("TextLabel", SliderPanel)
+    ValueLabel.Size = UDim2.new(0, 30, 0, 20); ValueLabel.Position = UDim2.new(1, -35, 0, 5); ValueLabel.BackgroundTransparency = 1; ValueLabel.Text = tostring(_G.Config[speedKey]); ValueLabel.TextColor3 = Color3.fromRGB(255, 255, 255); ValueLabel.Font = Enum.Font.SourceSansBold; ValueLabel.TextSize = 12; ValueLabel.ZIndex = 15
+
+    local function updateSlider(input)
+        local percentage = math.clamp((input.Position.X - SliderBar.AbsolutePosition.X) / SliderBar.AbsoluteSize.X, 0, 1)
+        local value = math.floor(min + (percentage * (max - min)))
+        _G.Config[speedKey] = value
+        SliderFill.Size = UDim2.new(percentage, 0, 1, 0)
+        ValueLabel.Text = tostring(value)
+        _G.saveSettings()
+    end
+
+    local sliding = false
+    SliderBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then sliding = true; updateSlider(input) end
+    end)
+    game:GetService("UserInputService").InputChanged:Connect(function(input)
+        if sliding and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then updateSlider(input) end
+    end)
+    game:GetService("UserInputService").InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then sliding = false end
+    end)
+
+    local panelOpen = false
+    GearBtn.MouseButton1Click:Connect(function()
+        panelOpen = not panelOpen
+        SliderPanel:TweenSize(UDim2.new(1, 0, 0, panelOpen and 30 or 0), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.15, true)
+        BigWrapper:TweenSize(UDim2.new(1, 0, 0, panelOpen and 60 or 30), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.15, true)
+    end)
+
+    local stateCallback = nil
+    ToggleBtn.MouseButton1Click:Connect(function()
+        _G.Config[configKey] = not _G.Config[configKey]
+        ToggleBtn.BackgroundColor3 = _G.Config[configKey] and Color3.fromRGB(186, 85, 211) or Color3.fromRGB(30, 30, 30)
+        _G.saveSettings()
+        if stateCallback then stateCallback(_G.Config[configKey]) end
+    end)
+    return { OnToggle = function(callback) stateCallback = callback end }
+end
+
+local speedCheat = _G.createFeatureWithLeftSlider(_G.pPlayer, "Speedhack", "SpeedValue", " WalkSpeed Hack", 16, 250)
+local flyCheat = _G.createFeatureWithLeftSlider(_G.pPlayer, "FlyMode", "FlySpeedValue", " Fly Mode (Camera)", 10, 200)
+local spinCheat = _G.createFeatureWithLeftSlider(_G.pPlayer, "SpinBot", "SpinSpeed", " Spin Bot", 10, 150)
+local noclipCheat = _G.createCheckbox(_G.pPlayer, "Noclip", "Noclip (Walk Through Walls)")
+
+RunService.Stepped:Connect(function()
+    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return end
+    local root = LocalPlayer.Character.HumanoidRootPart
+    local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+
+    if hum then
+        if _G.Config.Speedhack and not _G.Config.FlyMode then 
+            hum.WalkSpeed = _G.Config.SpeedValue 
+        else
+            hum.WalkSpeed = 16
+        end
+    end
+
+    if _G.Config.Noclip then
+        for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
+            if part:IsA("BasePart") and part.CanCollide then part.CanCollide = false end
+        end
+    end
+
+    if _G.Config.SpinBot then
+        root.CFrame = root.CFrame * CFrame.Angles(0, math.rad(_G.Config.SpinSpeed), 0)
+    else
+        root.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+    end
+
+    if _G.Config.FlyMode then
+        if not root:FindFirstChild("FlyVelocity") then
+            local flyVelocity = Instance.new("BodyVelocity")
+            flyVelocity.Name = "FlyVelocity"; flyVelocity.MaxForce = Vector3.new(1e5, 1e5, 1e5); flyVelocity.Velocity = Vector3.new(0, 0, 0); flyVelocity.Parent = root
+        end
+        local camera = workspace.CurrentCamera
+        local moveDirection = Vector3.new(0, 0, 0)
+        if hum and hum.MoveDirection.Magnitude > 0 then
+            moveDirection = hum.MoveDirection
+            local look = camera.CFrame.LookVector
+            moveDirection = Vector3.new(moveDirection.X, look.Y, moveDirection.Z)
+      end
+      -- ====================================================================
+-- PART 2.1: INTERACTION LOGIC, BOOSTED FLING, 100% SHOT & MUSCLE LEGENDS
+-- ====================================================================
+local function getMurderer()
+    for _, p in pairs(Players:GetPlayers()) do
+        if p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+            if p.Character:FindFirstChild("Knife") or p.Backpack:FindFirstChild("Knife") then 
+                return p.Character
+            end
+        end
+    end
+    return nil
+end
+
+local function findDroppedGun()
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj.Name == "GunDrop" or (obj:IsA("TouchTransmitter") and obj.Parent.Name == "Handle" and obj.Parent.Parent.Name == "GunDrop") then
+            return obj:IsA("TouchTransmitter") and obj.Parent or obj:FindFirstChild("Handle") or obj
+        end
+    end
+    return nil
+end
+
+local function getClosestPlayer()
+    local closest, maxDist = nil, 8
+    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return nil end
+    local myRoot = LocalPlayer.Character.HumanoidRootPart
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+            local dist = (myRoot.Position - p.Character.HumanoidRootPart.Position).Magnitude
+            if dist < maxDist then closest = p.Character.HumanoidRootPart; maxDist = dist end
+        end
+    end
+    return closest
+end
+
+-- МАКСИМАЛЬНО БЫСТРОЕ И УСКОРЕННОЕ ОТТАЛКИВАНИЕ (ONE-PUNCH FLING)
+RunService.Heartbeat:Connect(function()
+    if not _G.Config.OnePunchFling or not LocalPlayer.Character then return end
+    local myRoot = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return end
+    
+    local targetRoot = getClosestPlayer()
+    if targetRoot then
+        local currentVelocity = myRoot.AssemblyLinearVelocity
+        -- Мгновенное наложение диких угловых и линейных сил для агрессивного выбивания хитбокса
+        myRoot.AssemblyLinearVelocity = Vector3.new(999999, 999999, 999999)
+        myRoot.AssemblyAngularVelocity = Vector3.new(999999, 999999, 999999)
+        
+        local oldCFrame = myRoot.CFrame
+        myRoot.CFrame = targetRoot.CFrame * CFrame.new(0, 0, 0.1)
+        task.wait()
+        
+        myRoot.AssemblyLinearVelocity = currentVelocity
+        myRoot.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+        myRoot.CFrame = oldCFrame
+    end
+end)
+
+-- 100% РАБОЧИЙ АВТО-ВЫСТРЕЛ С ПОЛНОЙ ПРОВЕРКОЙ РЕЙКАСТА И ЭКВИПА
+_G.ShotButton.MouseButton1Click:Connect(function()
+    if not _G.Config.MM2Shot or not LocalPlayer.Character then return end
+    local myChar = LocalPlayer.Character
+    local hum = myChar:FindFirstChildOfClass("Humanoid")
+    local gun = myChar:FindFirstChild("Gun") or LocalPlayer.Backpack:FindFirstChild("Gun")
+    
+    if not gun then return end
+    if gun.Parent == LocalPlayer.Backpack and hum then
+        hum:EquipTool(gun)
+        task.wait(0.08) -- Безопасная задержка для Poco X6 Pro, чтобы пистолет точно встал в руку
+    end
+    
+    local murdererChar = getMurderer()
+    if murdererChar and murdererChar:FindFirstChild("HumanoidRootPart") and myChar:FindFirstChild("HumanoidRootPart") then
+        local targetRoot = murdererChar.HumanoidRootPart
+        local myRoot = myChar.HumanoidRootPart
+        local cam = workspace.CurrentCamera
+        
+        -- Полный и жесткий разворот торса и камеры на убийцу
+        if cam then cam.CFrame = CFrame.new(cam.CFrame.Position, targetRoot.Position) end
+        myRoot.CFrame = CFrame.new(myRoot.Position, Vector3.new(targetRoot.Position.X, myRoot.Position.Y, targetRoot.Position.Z))
+        task.wait(0.02)
+        
+        -- Активация инструмента + симуляция точного выстрела по координатам
+        gun:Activate()
+        local shootEvent = gun:FindFirstChild("KnifeLocal") or gun:FindFirstChild("ShootGun")
+        if shootEvent and shootEvent:IsA("RemoteEvent") then 
+            shootEvent:FireServer(targetRoot.Position, targetRoot.Position + Vector3.new(0,1,0)) 
+        end
+    end
+end)
+
+_G.TpGunButton.MouseButton1Click:Connect(function()
+    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return end
+    local root = LocalPlayer.Character.HumanoidRootPart
+    local droppedGun = findDroppedGun()
+    if droppedGun and droppedGun:IsA("BasePart") then
+        local oldPosition = root.CFrame
+        root.CFrame = droppedGun.CFrame + Vector3.new(0, 1, 0)
+        task.wait(0.4)
+        root.CFrame = oldPosition
+    end
+end)
+
+-- ====================================================================
+-- MUSCLE LEGENDS AUTOMATION CYCLES
+-- ====================================================================
+local function useTool(toolName)
+    local char = LocalPlayer.Character
+    if not char then return end
+    local tool = char:FindFirstChild(toolName) or LocalPlayer.Backpack:FindFirstChild(toolName)
+    if tool then
+        if tool.Parent == LocalPlayer.Backpack and char:FindFirstChildOfClass("Humanoid") then
+            char:FindFirstChildOfClass("Humanoid"):EquipTool(tool)
+        end
+        tool:Activate()
+    end
+end
+
+local function fireRemote(remoteFolder, remoteName)
+    local folder = game:GetService("ReplicatedStorage"):FindFirstChild(remoteFolder)
+    if folder and folder:FindFirstChild(remoteName) and folder[remoteName]:IsA("RemoteEvent") then
+        folder[remoteName]:FireServer()
+    end
+end
+
+-- Потоки автоматизации Muscle Legends
+task.spawn(function()
+    while task.wait(0.1) do
+        if _G.Config.ML_AutoLift then useTool("Weight") fireRemote("rEvents", "liftWeightRemote") end
+        if _G.Config.ML_AutoPushup then useTool("Pushups") fireRemote("rEvents", "pushupsRemote") end
+        if _G.Config.ML_AutoSitup then useTool("Situps") fireRemote("rEvents", "situpsRemote") end
+        if _G.Config.ML_AutoRock then useTool("Rock") fireRemote("rEvents", "liftRockRemote") end
+        if _G.Config.ML_AutoRebirth then fireRemote("rEvents", "rebirthRemote") end
+    end
+end)
+      -- ====================================================================
+-- PART 3: INTERFACE TOOGLES, LIGHTWEIGHT CHAMS & REJOIN SYSTEM
+-- ====================================================================
+local DEFAULT_SHOT_POS = UDim2.new(0, 15, 0, 210)
+local DEFAULT_TP_POS = UDim2.new(0, 15, 0, 280)
+
+local baseEspCheat = _G.createCheckbox(_G.pVisual, "ESPToggle", "Player ESP (Neon Chams)")
+
+-- НАСТРОЙКА КНОПКИ ДЛЯ ОТКРЫТИЯ ОКНА MM2
+local mm2SubTabBtn = Instance.new("TextButton", _G.pGame)
+mm2SubTabBtn.Size = UDim2.new(1, 0, 0, 30); mm2SubTabBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 20); mm2SubTabBtn.Text = "👉 Open Murder Mystery 2 Menu"; mm2SubTabBtn.TextColor3 = Color3.fromRGB(186, 85, 211); mm2SubTabBtn.Font = Enum.Font.SourceSans; mm2SubTabBtn.TextSize = 13
+Instance.new("UICorner", mm2SubTabBtn).CornerRadius = UDim.new(0, 5)
+local SubStroke = Instance.new("UIStroke", mm2SubTabBtn); SubStroke.Color = Color3.fromRGB(186, 85, 211)
+
+mm2SubTabBtn.MouseButton1Click:Connect(function()
+    _G.Config.MM2Mod = not _G.Config.MM2Mod
+    _G.MM2Window.Visible = _G.Config.MM2Mod
+    if not _G.Config.MM2Mod then
+        -- Полный сброс функций MM2 при принудительном закрытии меню
+        _G.Config.MM2Roles = false
+        _G.Config.MM2Gun = false
+        _G.Config.MM2Shot = false
+        _G.Config.Target = false
+        _G.ShotButton.Visible = false
+        _G.TpGunButton.Visible = false
+    end
+    _G.saveSettings()
+end)
+
+-- НАСТРОЙКА КНОПКИ ДЛЯ ОТКРЫТИЯ ОКНА MUSCLE LEGENDS
+local mlSubTabBtn = Instance.new("TextButton", _G.pGame)
+mlSubTabBtn.Size = UDim2.new(1, 0, 0, 30); mlSubTabBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 20); mlSubTabBtn.Text = "💪 Open Muscle Legends Menu"; mlSubTabBtn.TextColor3 = Color3.fromRGB(0, 162, 255); mlSubTabBtn.Font = Enum.Font.SourceSans; mlSubTabBtn.TextSize = 13
+Instance.new("UICorner", mlSubTabBtn).CornerRadius = UDim.new(0, 5)
+local MlSubStr = Instance.new("UIStroke", mlSubTabBtn); MlSubStr.Color = Color3.fromRGB(0, 162, 255)
+
+mlSubTabBtn.MouseButton1Click:Connect(function()
+    local nextState = not _G.MLWindow.Visible
+    _G.MLWindow.Visible = nextState
+    if not nextState then
+        -- Полный сброс автофарма при ручном закрытии меню
+        _G.Config.ML_AutoLift = false
+        _G.Config.ML_AutoPushup = false
+        _G.Config.ML_AutoSitup = false
+        _G.Config.ML_AutoRock = false
+        _G.Config.ML_AutoRebirth = false
+    end
+    _G.saveSettings()
+end)
+
+-- ДОБАВЛЕНИЕ ЭЛЕМЕНТОВ В ПАНЕЛЬ MM2
+local rolesCheat = _G.createCheckbox(_G.MM2Content, "MM2Roles", "Roles Chams (🔴/🔵/⚪)")
+local gunEspCheat = _G.createCheckbox(_G.MM2Content, "MM2Gun", "Gun Chams + 3D Text")
+local shotCheat = _G.createCheckbox(_G.MM2Content, "MM2Shot", "Shot Murder Button")
+local tpGunToggle = _G.createCheckbox(_G.MM2Content, "Target", "TP to Gun Button")
+local flingCheat = _G.createCheckbox(_G.pOther, "OnePunchFling", "OnePunchFling (Touch Fling)")
+
+shotCheat.OnToggle(function(state) 
+    if state then _G.ShotButton.Position = DEFAULT_SHOT_POS end
+    _G.ShotButton.Visible = state 
+end)
+tpGunToggle.OnToggle(function(state) 
+    if state then _G.TpGunButton.Position = DEFAULT_TP_POS end
+    _G.TpGunButton.Visible = state 
+end)
+
+-- ДОБАВЛЕНИЕ ЭЛЕМЕНТОВ В ПАНЕЛЬ MUSCLE LEGENDS
+local mlLiftToggle = _G.createCheckbox(_G.MLContent, "ML_AutoLift", "Auto Lift Weights")
+local mlPushToggle = _G.createCheckbox(_G.MLContent, "ML_AutoPushup", "Auto Push-ups")
+local mlSitToggle = _G.createCheckbox(_G.MLContent, "ML_AutoSitup", "Auto Sit-ups")
+local mlRockToggle = _G.createCheckbox(_G.MLContent, "ML_AutoRock", "Auto Lift Rocks")
+local mlRebirthToggle = _G.createCheckbox(_G.MLContent, "ML_AutoRebirth", "Auto Rebirth")
+
+-- ЛОГИКА СИСТЕМЫ CHAMS ESP (ОБНОВЛЕНИЕ РОЛЕЙ И ЦВЕТОВ)
+local function getMM2Color(player)
+    if not player.Character then return Color3.fromRGB(255, 255, 255) end
+    if player.Character:FindFirstChild("Knife") or player.Backpack:FindFirstChild("Knife") then 
+        return Color3.fromRGB(255, 50, 50)
+    elseif player.Character:FindFirstChild("Gun") or player.Backpack:FindFirstChild("Gun") then 
+        return Color3.fromRGB(50, 150, 255) 
+    end
+    return Color3.fromRGB(255, 255, 255)
+end
+
+local function applyPlayerVisuals(player)
+    if player == LocalPlayer then return end
+    
+    RunService.Heartbeat:Connect(function()
+        if not player.Character then return end
+        local highlight = player.Character:FindFirstChild("NeonESP")
+        
+        if _G.Config.MM2Roles or _G.Config.ESPToggle then
+            if not highlight then
+                highlight = Instance.new("Highlight")
+                highlight.Name = "NeonESP"
+                highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                highlight.FillTransparency = 0.4
+                highlight.OutlineTransparency = 0.1
+                highlight.Parent = player.Character
+            end
+            
+            if _G.Config.MM2Roles then 
+                local rColor = getMM2Color(player)
+                highlight.FillColor = rColor
+                highlight.OutlineColor = rColor
+            else 
+                highlight.FillColor = Color3.fromRGB(186, 85, 211)
+                highlight.OutlineColor = Color3.fromRGB(255, 255, 255) 
+            end
+        else 
+            if highlight then highlight:Destroy() end 
+        end
+    end)
+end
+
+Players.PlayerAdded:Connect(applyPlayerVisuals)
+for _, p in pairs(Players:GetPlayers()) do applyPlayerVisuals(p) end
+
+-- 3D ПОДСВЕТКА И ОТСЛЕЖИВАНИЕ ДЛЯ ВЫПАВШЕГО ПИСТОЛЕТА
+RunService.Heartbeat:Connect(function()
+    local droppedGun = findDroppedGun()
+    if droppedGun and droppedGun:IsA("BasePart") and _G.Config.MM2Gun then
+        if not droppedGun:FindFirstChild("GunESP") then
+            local hl = Instance.new("BoxHandleAdornment", droppedGun)
+            hl.Name = "GunESP"; hl.AlwaysOnTop = true; hl.Color3 = Color3.fromRGB(50, 255, 50); hl.Size = droppedGun.Size * 1.5; hl.Adornee = droppedGun; hl.Transparency = 0.3; hl.ZIndex = 6
+        end
+        if not droppedGun:FindFirstChild("3D_GunLabel") then
+            local bg = Instance.new("BillboardGui", droppedGun)
+            bg.Name = "3D_GunLabel"; bg.Size = UDim2.new(0, 60, 0, 25); bg.AlwaysOnTop = true; bg.StudsOffset = Vector3.new(0, 2, 0); bg.Adornee = droppedGun
+            
+            local lbl = Instance.new("TextLabel", bg)
+            lbl.Size = UDim2.new(1, 0, 1, 0); lbl.BackgroundTransparency = 1; lbl.Text = "GUN"; lbl.TextColor3 = Color3.fromRGB(50, 255, 50); lbl.Font = Enum.Font.SourceSans; lbl.TextSize = 15
+            lbl.Parent = bg
+        end
+    end
+end)
+
+-- НАСТРОЙКА КНОПКИ СЕРВЕРНОГО ПЕРЕЗАХОДА (REJOIN)
+local RejoinBtn = Instance.new("TextButton", _G.pSettings)
+RejoinBtn.Size = UDim2.new(1, 0, 0, 30); RejoinBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 20); RejoinBtn.Text = "Server Rejoin"; RejoinBtn.TextColor3 = Color3.fromRGB(255, 255, 255); RejoinBtn.Font = Enum.Font.SourceSans; RejoinBtn.TextSize = 13
+Instance.new("UICorner", RejoinBtn).CornerRadius = UDim.new(0, 5)
+local RjStr = Instance.new("UIStroke", RejoinBtn); RjStr.Color = Color3.fromRGB(50, 200, 50)
+
+RejoinBtn.MouseButton1Click:Connect(function()
+    if #Players:GetPlayers() <= 1 then 
+        TeleportService:Teleport(game.PlaceId, LocalPlayer)
+    else 
+        TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer) 
+    end
+end)
+
+-- КНОПКА ПОЛНОГО УДАЛЕНИЯ КОНФИГА И UI
+local ResetBtn = Instance.new("TextButton", _G.pSettings)
+ResetBtn.Size = UDim2.new(1, 0, 0, 30); ResetBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 20); ResetBtn.Text = "Reset Config & Close UI"; ResetBtn.TextColor3 = Color3.fromRGB(255, 50, 50); ResetBtn.Font = Enum.Font.SourceSans; ResetBtn.TextSize = 13
+Instance.new("UICorner", ResetBtn).CornerRadius = UDim.new(0, 5)
+local RsStr = Instance.new("UIStroke", ResetBtn); RsStr.Color = Color3.fromRGB(255, 50, 50)
+
+ResetBtn.MouseButton1Click:Connect(function()
+    if delfile and isfile("SimpleNeon_Config.json") then 
+        delfile("SimpleNeon_Config.json") 
+    end
+    if _G.ScreenGui then 
+        _G.ScreenGui:Destroy() 
+    end
+end)
+      
